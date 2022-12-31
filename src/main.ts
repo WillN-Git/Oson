@@ -1,4 +1,4 @@
-import THREE from 'three';
+import * as THREE from 'three';
 
 
 let threeScene: THREE.Scene, renderer: THREE.WebGLRenderer, camera: THREE.Camera, clock: THREE.Clock;
@@ -14,7 +14,7 @@ const canvasContext = canvasElement.getContext("2d");
 const classNameForLoading: string = "loading";
 
 // Audio
-let audioSource: HTMLAudioElement, audioAnalyser: AnalyserNode;
+let audioSource: THREE.Audio, audioAnalyser: THREE.AudioAnalyser;
 const fftSize: number = 2048; // https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/fftSize
 const frequencyRange = { // Frequency ranges for audio analysis
   bass: [20, 140],
@@ -29,6 +29,35 @@ const frequencyRange = { // Frequency ranges for audio analysis
  * Responsible to set up the scene. It's the main function
  */
 const initialize = (): void => {
+  threeScene = new THREE.Scene(); // Create the Scene
+  threeScene.background = new THREE.Color(0x111111);
+
+  // Renderer
+  renderer = new THREE.WebGLRenderer();
+  document.getElementById("content")?.appendChild(renderer.domElement);
+
+  // Clock
+  clock = new THREE.Clock();
+
+  initializeCamera();
+
+  // Check for media devices and get the user's media if available
+  // @ts-ignore
+  const mediaDevicesAvailable = navigator.mediaDevices || ((navigator.mozGetUserMedia || navigator.webkitGetUserMedia) ? {
+    getUserMedia: (c: MediaStreamConstraints) => {
+        return new Promise((resolve, reject) => {
+            // @ts-ignore
+            (navigator.mozGetUserMedia || navigator.webkitGetUserMedia).call(navigator, c, resolve, reject);
+        });
+    }
+  } : null);
+
+  if(mediaDevicesAvailable) {
+    initializeAudio();
+    initializeVideo();
+  } else {
+    document.getElementById("message")?.classList.remove("hidden");
+  }
 }
 
 /**
@@ -63,7 +92,7 @@ const initializeVideo = (): void => { // https://developer.mozilla.org/fr/docs/W
             videoWidth = videoInput.videoWidth;
             videoHeight = videoInput.videoHeight;
 
-            // :point_right: createParticles() here
+            createParticles();
         });
     })
     .catch((error) => {
@@ -72,10 +101,27 @@ const initializeVideo = (): void => { // https://developer.mozilla.org/fr/docs/W
     });
 }
 
+/**
+ * Responsiable to create and play audio
+ */
+const initializeAudio = (): void => {
+  const audioListener = new THREE.AudioListener();
+  audioSource = new THREE.Audio(audioListener);
+  const audioLoader = new THREE.AudioLoader();
+
+  audioLoader.load('assets/demo1.mp3', (buffer) => {
+    audioSource.setBuffer(buffer);
+    audioSource.setLoop(true);
+    audioSource.setVolume(0.5);
+    audioSource.play();
+  });
+
+  audioAnalyser = new THREE.AudioAnalyser(audioSource, fftSize);
+} 
+
 
 /**
  * Responsible to create particles
  */
 const createParticles = (): void => {
-
 }
