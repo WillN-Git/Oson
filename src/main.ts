@@ -168,7 +168,7 @@ const getImageData = (frame: HTMLVideoElement, useCache: boolean = true): ImageD
   canvasElement.height = height;
 
   canvasContext?.translate(width, 0);
-  canvasContext?.scale(-1, -1);
+  canvasContext?.scale(-1, 1);
   
   canvasContext?.drawImage(frame, 0, 0);
   imageCache = canvasContext?.getImageData(0, 0, videoWidth, videoHeight) as ImageData;
