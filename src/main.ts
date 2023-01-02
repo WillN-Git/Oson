@@ -118,7 +118,7 @@ const initializeAudio = (): void => {
     audioSource.setLoop(true);
     audioSource.setVolume(0.5);
     audioSource.play();
-  });
+  }, () => {}, () => {});
 
   audioAnalyser = new THREE.AudioAnalyser(audioSource, fftSize);
 
@@ -216,7 +216,7 @@ const getFrequencyRangeValue = (data: Uint8Array, freqRange: number[]): number =
  * Draw the visualizer
  * @param dt 
  */
-const draw = (dt: DOMHighResTimeStamp) => {
+const draw = (dt: DOMHighResTimeStamp = 0) => {
   clock.getDelta();
   // const time = clock.elapsedTime;
 
@@ -243,6 +243,7 @@ const draw = (dt: DOMHighResTimeStamp) => {
       particles.material.color.b = 1 - b;
 
       const density = 2;
+      // @ts-ignore
       const useCache = parseInt(dt) % 2 === 0;  // To reduce CPU usage.
       const imageData = getImageDataFromVideo(videoInput, useCache);
       for (let i = 0; i < particles.geometry.vertices.length; i++) {
