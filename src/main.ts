@@ -113,7 +113,7 @@ const initializeAudio = (): void => {
   audioSource = new THREE.Audio(audioListener);
   const audioLoader = new THREE.AudioLoader();
 
-  audioLoader.load('assets/demo9.mp3', (buffer: THREE.AudioBuffer) => {
+  audioLoader.load('assets/demo10.mp3', (buffer: THREE.AudioBuffer) => {
     audioSource.setBuffer(buffer);
     audioSource.setLoop(true);
     audioSource.setVolume(0.5);
@@ -121,6 +121,16 @@ const initializeAudio = (): void => {
   });
 
   audioAnalyser = new THREE.AudioAnalyser(audioSource, fftSize);
+
+  document.body.addEventListener('click', () => {
+      if (audioSource) {
+          if (audioSource.isPlaying) {
+              audioSource.pause();
+          } else {
+              audioSource.play();
+          }
+      }
+  });
 } 
 
 
@@ -128,7 +138,7 @@ const initializeAudio = (): void => {
  * Responsible to create particles
  */
 const createParticles = (): void => {
-  const imageData = getImageData(videoInput);
+  const imageData = getImageDataFromVideo(videoInput);
   const geometry = new THREE.Geometry();
   // @ts-ignore
   geometry.morphAttributes = {}; // This is necessary to avoid error.
@@ -156,7 +166,13 @@ const createParticles = (): void => {
   threeScene.add(particles);
 }
 
-const getImageData = (frame: HTMLVideoElement, useCache: boolean = true): ImageData => {
+/**
+ * Returns image data from given video frame.
+ * @param frame image frame of the video.
+ * @param useCache 
+ * @returns Canvas image data
+ */
+const getImageDataFromVideo = (frame: HTMLVideoElement, useCache: boolean = true): ImageData => {
   if(useCache && imageCache) {
     return imageCache;
   }
@@ -176,6 +192,12 @@ const getImageData = (frame: HTMLVideoElement, useCache: boolean = true): ImageD
   return imageCache;
 }
 
+/**
+ * Returns frequence 
+ * @param data 
+ * @param freqRange 
+ * @returns 
+ */
 const getFrequencyRangeValue = (data: Uint8Array, freqRange: number[]): number => {
   const nyquist = 48000 / 2;
   const lowIndex = Math.round(freqRange[0] / nyquist * data.length);
@@ -190,7 +212,11 @@ const getFrequencyRangeValue = (data: Uint8Array, freqRange: number[]): number =
   return (total / numFrequencies) / 255;
 };
 
-const draw = (t: any = null) => {
+/**
+ * Draw the visualizer
+ * @param dt 
+ */
+const draw = (dt: DOMHighResTimeStamp) => {
   clock.getDelta();
   // const time = clock.elapsedTime;
 
@@ -217,8 +243,8 @@ const draw = (t: any = null) => {
       particles.material.color.b = 1 - b;
 
       const density = 2;
-      const useCache = parseInt(t) % 2 === 0;  // To reduce CPU usage.
-      const imageData = getImageData(videoInput, useCache);
+      const useCache = parseInt(dt) % 2 === 0;  // To reduce CPU usage.
+      const imageData = getImageDataFromVideo(videoInput, useCache);
       for (let i = 0; i < particles.geometry.vertices.length; i++) {
           const particle = particles.geometry.vertices[i];
           if (i % density !== 0) {
@@ -258,7 +284,9 @@ const handleResize = (): void => {
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(screenWidth, screenHeight);
 
+  // @ts-ignore
   camera.aspect = screenWidth / screenHeight;
+  // @ts-ignore
   camera.updateProjectionMatrix();
 }
 
