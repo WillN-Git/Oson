@@ -1,20 +1,52 @@
+/**
+ * Description: Audio visualizer
+ * Author: Wilfried Ndefo
+ * Inspired by : https://www.instagram.com/p/BzD7B7bB5kA/
+ */
+
 import "./style.css";
-import * as THREE from 'three';
+import {
+  Audio,
+  Scene,
+  Color,
+  Points,
+  Camera,
+  Vector3,
+  AudioLoader,
+  AudioAnalyser,
+  AudioListener,
+  WebGLRenderer,
+  BufferGeometry,
+  PointsMaterial,
+  PerspectiveCamera,
+  Float32BufferAttribute
+} from 'three';
 
+// Basics
+let threeScene: Scene, renderer: WebGLRenderer;
 
-let threeScene: THREE.Scene, renderer: THREE.WebGLRenderer, camera: THREE.Camera, clock: THREE.Clock;
-let screenWidth: number, screenHeight: number;
-
-let videoInput: HTMLVideoElement;
-let particles: any;
-let videoWidth: number, videoHeight: number, imageCache: ImageData;
+// Camera
+let camera: Camera;
+const cameraNear: number = 0.1, cameraFar: number = 10000;
 
 // Canvas
 const canvasElement = document.createElement("canvas");
 const canvasContext = canvasElement.getContext("2d");
 
+// Window
+let screenWidth: number, screenHeight: number;
+
+// Particles
+let particlesMesh: Points<BufferGeometry, PointsMaterial>, particlesVertices: number[] = [];
+
+// Video
+let videoInput: HTMLVideoElement;
+let videoWidth: number, videoHeight: number, imageCache: ImageData;
+
 // Audio
-let audioSource: THREE.Audio, audioAnalyser: THREE.AudioAnalyser;
+let audioSource: Audio; // Global audio source
+let audioAnalyser: AudioAnalyser; // Analyser responsible to get data from the audio source
+
 const fftSize: number = 2048; // https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/fftSize
 const frequencyRange = { // Frequency ranges for audio analysis
   bass: [20, 140],
@@ -26,26 +58,23 @@ const frequencyRange = { // Frequency ranges for audio analysis
 
 
 /**
- * Responsible to set up the scene. It's the main function
+ * Responsible to set up the scene. It's the main function.
  */
 const initialize = (): void => {
-  threeScene = new THREE.Scene(); // Create the Scene
-  threeScene.background = new THREE.Color(0x111111);
+  threeScene = new Scene();
+  threeScene.background = new Color(0x111111);
 
   // Renderer
-  renderer = new THREE.WebGLRenderer();
+  renderer = new WebGLRenderer();
   document.getElementById("content")?.appendChild(renderer.domElement);
-
-  // Clock
-  clock = new THREE.Clock();
 
   initializeCamera();
 
   handleResize();
 
-  // Check for media devices and get the user's media if available
   // @ts-ignore
-  const mediaDevicesAvailable = navigator.mediaDevices || ((navigator.mozGetUserMedia || navigator.webkitGetUserMedia) ? {
+  // Check for media devices and get the user's media if available
+  const mediaDevicesAvailable: MediaDevices | undefined = navigator.mediaDevices || ((navigator.mozGetUserMedia || navigator.webkitGetUserMedia) ? {
     getUserMedia: (c: MediaStreamConstraints) => {
         return new Promise((resolve, reject) => {
             // @ts-ignore
@@ -72,18 +101,17 @@ const initializeCamera = (): void => {
   const aspect = screenWidth / screenHeight; // Aspect Ratio
 
   // Camera
-  camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 10000);
+  camera = new PerspectiveCamera(fov, aspect, cameraNear, cameraFar);
+  camera.lookAt(0, 0, 0);
 
   const z = Math.min(window.innerWidth, window.innerHeight);
   camera.position.set(0, 0, z);
-  camera.lookAt(0, 0, 0);
 
   threeScene.add(camera); // Add Camera to the scene
 }
 
-
 /**
- * Responsible to create a new video element and set it to autoplay
+ * Responsible to create a new video element.
  */
 const initializeVideo = (): void => { // https://developer.mozilla.org/fr/docs/Web/API/MediaDevices/getUserMedia
   videoInput = document.getElementById("video") as HTMLVideoElement;
@@ -94,7 +122,7 @@ const initializeVideo = (): void => { // https://developer.mozilla.org/fr/docs/W
         videoInput.srcObject = stream;
         videoInput.addEventListener("loadeddata", () => {
             videoWidth = videoInput.videoWidth;
-            videoHeight = videoInput.videoHeight;
+            videoHeight = videoInput.videoHeight; 
 
             createParticles();
         });
@@ -106,86 +134,78 @@ const initializeVideo = (): void => { // https://developer.mozilla.org/fr/docs/W
 }
 
 /**
- * Responsiable to create and play audio
+ * Responsible to create and handle audio.
  */
 const initializeAudio = (): void => {
-  const audioListener = new THREE.AudioListener();
-  audioSource = new THREE.Audio(audioListener);
-  const audioLoader = new THREE.AudioLoader();
+  const audioListener = new AudioListener();
+  audioSource = new Audio(audioListener);
 
-  audioLoader.load('assets/demo10.mp3', (buffer: THREE.AudioBuffer) => {
+  // Load a sound and set it as the Audio object's buffer
+  const audioLoader = new AudioLoader();
+
+  audioLoader.load('assets/demo12.mp3', (buffer: AudioBuffer) => {
     audioSource.setBuffer(buffer);
     audioSource.setLoop(true);
-    audioSource.setVolume(0.5);
+    audioSource.setVolume(0.4);
     audioSource.play();
-  }, () => {}, () => {});
+  });
 
-  audioAnalyser = new THREE.AudioAnalyser(audioSource, fftSize);
+  audioAnalyser = new AudioAnalyser(audioSource, fftSize);
 
   document.body.addEventListener('click', () => {
       if (audioSource) {
-          if (audioSource.isPlaying) {
-              audioSource.pause();
-          } else {
-              audioSource.play();
-          }
+          (audioSource.isPlaying) ? audioSource.pause() : audioSource.play();
       }
   });
 } 
 
-
 /**
- * Responsible to create particles
+ * Responsible to create particles.
  */
 const createParticles = (): void => {
   const imageData = getImageDataFromVideo(videoInput);
-  const geometry = new THREE.Geometry();
-  // @ts-ignore
+  const geometry = new BufferGeometry();
   geometry.morphAttributes = {}; // This is necessary to avoid error.
 
-  const material = new THREE.PointsMaterial({
-    size: 1,
-    color: 0xff3b6c,
-    sizeAttenuation: false
-  });
+  const material = new PointsMaterial({size: 1, sizeAttenuation: false});
 
   // console.log(imageData);
   
   for (let y=0; y < imageData.height; y++) {
     for (let x=0; x < imageData.width; x++) {
-        const vertex = new THREE.Vector3(
-            x - imageData.width / 2,
-            -y + imageData.height / 2,
-            0
-        );
-        geometry.vertices.push(vertex);
+        // Generate vertices from image data
+        const vertex = new Vector3(x - imageData.width / 2, -y + imageData.height / 2, 0);
+        particlesVertices.push(vertex.x, vertex.y, vertex.z);
     }
   }
 
-  particles = new THREE.Points(geometry, material);
-  threeScene.add(particles);
+  // 3 because there are 3 values (components) per vertex
+  geometry.setAttribute('position', new Float32BufferAttribute(particlesVertices, 3));
+  particlesMesh = new Points(geometry, material);
+
+  threeScene.add(particlesMesh);
 }
 
 /**
- * Returns image data from given video frame.
- * @param frame image frame of the video.
- * @param useCache 
- * @returns Canvas image data
+ * Returns image data from given video frame, 
+ * or returns image data from image store in the cache for performances reasons.
  */
 const getImageDataFromVideo = (frame: HTMLVideoElement, useCache: boolean = true): ImageData => {
   if(useCache && imageCache) {
     return imageCache;
   }
 
-  const width = frame.videoWidth;
-  const height = frame.videoHeight;
+  const { videoWidth: width, videoHeight: height } = frame;
   
+  // Adapt the canva to the video frame sizes
   canvasElement.width = width;
   canvasElement.height = height;
 
+  // To flip camera shot
   canvasContext?.translate(width, 0);
   canvasContext?.scale(-1, 1);
   
+  // Get the data of the video and send it to the cache for optimization
   canvasContext?.drawImage(frame, 0, 0);
   imageCache = canvasContext?.getImageData(0, 0, videoWidth, videoHeight) as ImageData;
 
@@ -193,39 +213,38 @@ const getImageDataFromVideo = (frame: HTMLVideoElement, useCache: boolean = true
 }
 
 /**
- * Returns frequence 
- * @param data 
- * @param freqRange 
- * @returns 
+ * Returns the amount of energy (amplitude / volume) from [0, 1], at a specific frequency,
+ * or the average amount of energy between a frequency range.
+ * 
+ * More explication about the process here 👇:
+ * https://makersportal.com/blog/2018/9/13/audio-processing-in-python-part-i-sampling-and-the-fast-fourier-transform
  */
-const getFrequencyRangeValue = (data: Uint8Array, freqRange: number[]): number => {
-  const nyquist = 48000 / 2;
-  const lowIndex = Math.round(freqRange[0] / nyquist * data.length);
-  const highIndex = Math.round(freqRange[1] / nyquist * data.length);
-  let total = 0;
-  let numFrequencies = 0;
+const getFrequencyRangeValue = (spectrum: Uint8Array, freqRange: number[]): number => {
+  const nyquist = 48000 / 2; // Nyquist frequency
+  const lowIndex = Math.round(freqRange[0] / nyquist * spectrum.length);
+  const highIndex = Math.round(freqRange[1] / nyquist * spectrum.length);
+
+  let totalOfDecibels = 0, frequenceCount = 0;
 
   for (let i = lowIndex; i <= highIndex; i++) {
-      total += data[i];
-      numFrequencies += 1;
+      totalOfDecibels += spectrum[i];
+      frequenceCount += 1;
   }
-  return (total / numFrequencies) / 255;
+
+  return (totalOfDecibels / frequenceCount) / 255;
 };
 
 /**
- * Draw the visualizer
- * @param dt 
+ * Draw the visualizer.
  */
-const draw = (dt: DOMHighResTimeStamp = 0) => {
-  clock.getDelta();
-  // const time = clock.elapsedTime;
-
+const draw = (deltaTime: DOMHighResTimeStamp = 0): void => {
+  // Audio data for edit color of the particles mesh 
   let r = 0, g = 0, b = 0;
-
-  // audio
+  
   if (audioAnalyser) {
       // analyser.getFrequencyData() would be an array with a size of half of fftSize.
-      const data = audioAnalyser.getFrequencyData();
+      // Each item in the array represent the decibel value at a specific frequency (amplitude / volume)
+      const data: Uint8Array = audioAnalyser.getFrequencyData();
 
       const bass = getFrequencyRangeValue(data, frequencyRange.bass);
       const mid = getFrequencyRangeValue(data, frequencyRange.mid);
@@ -236,47 +255,54 @@ const draw = (dt: DOMHighResTimeStamp = 0) => {
       b = treble;
   }
 
-  // video
-  if (particles) {
-      particles.material.color.r = 1 - r;
-      particles.material.color.g = 1 - g;
-      particles.material.color.b = 1 - b;
+  // Video
+  if (particlesMesh) {
+      particlesMesh.material.color.r = 1 - r;
+      particlesMesh.material.color.g = 1 - g;
+      particlesMesh.material.color.b = 1 - b;
 
-      const density = 2;
+      
+      const imageData = getImageDataFromVideo(videoInput, false);
       // @ts-ignore
-      const useCache = parseInt(dt) % 2 === 0;  // To reduce CPU usage.
-      const imageData = getImageDataFromVideo(videoInput, useCache);
-      for (let i = 0; i < particles.geometry.vertices.length; i++) {
-          const particle = particles.geometry.vertices[i];
+      const useCache = parseInt(deltaTime) % 2 === 0;  // To reduce CPU usage.
+      const density = 2;
+
+      for (let i = 0; i < particlesVertices.length / 3; i++) {
+
+          let bounce = particlesMesh.geometry.attributes.position.getZ(i);
           if (i % density !== 0) {
-              particle.z = 10000;
+              bounce = cameraFar;
+              particlesMesh.geometry.attributes.position.setZ(i, bounce);
               continue;
           }
-          let index = i * 4;
-          let gray = (imageData.data[index] + imageData.data[index + 1] + imageData.data[index + 2]) / 3;
-          let threshold = 300;
-          if (gray < threshold) {
-              if (gray < threshold / 3) {
-                  particle.z = gray * r * 5;
 
-              } else if (gray < threshold / 2) {
-                  particle.z = gray * g * 5;
+          let idxColor = i * 4;
+          let grayScale = (imageData.data[idxColor] + imageData.data[idxColor + 1] + imageData.data[idxColor + 2]) / 3;
+          const bouncingThreshold = 300;
 
+          if (grayScale < bouncingThreshold) {
+              if (grayScale < bouncingThreshold / 3) {
+                  bounce = grayScale * r * 5;
+              } else if (grayScale < bouncingThreshold / 2) {
+                  bounce = grayScale * g * 5;
               } else {
-                  particle.z = gray * b * 5;
+                  bounce = grayScale * b * 5;
               }
           } else {
-              particle.z = 10000;
+              bounce = cameraFar;
           }
+
+          particlesMesh.geometry.attributes.position.setZ(i, bounce);
       }
-      particles.geometry.verticesNeedUpdate = true;
+
+      // After the first render
+      particlesMesh.geometry.attributes.position.needsUpdate = true;
   }
 
   renderer.render(threeScene, camera);
 
   requestAnimationFrame(draw);
 };
-
 
 const handleResize = (): void => {
   screenWidth = window.innerWidth;
@@ -285,12 +311,12 @@ const handleResize = (): void => {
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(screenWidth, screenHeight);
 
-  // @ts-ignore
+  // @ts-ignore: https://threejs.org/docs/#api/en/cameras/PerspectiveCamera.aspect
   camera.aspect = screenWidth / screenHeight;
-  // @ts-ignore
+  // @ts-ignore: https://threejs.org/docs/#api/en/cameras/PerspectiveCamera.updateProjectionMatrix
   camera.updateProjectionMatrix();
 }
 
 window.addEventListener("resize", handleResize);
 
-initialize();
+window.addEventListener("load", initialize);
