@@ -1,8 +1,6 @@
 # Oson 🎧
 <div align="center">
-  <h1 align="center">
     <img src="MDImages/screenshot.jpg" width="30%" />
-  </h1>
 </div>
 
 # Project purpose 🎯
