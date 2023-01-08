@@ -1,8 +1,9 @@
 # Oson 🎧
-
-[1]: https://o-son.netlify.app/
-[2]: https://github.com/WillN-Git/Oson/blob/main/MDImages/screenshot.jpg
-[![Oson Visualizer][2]][1]
+<div align="center">
+  <h1 align="center">
+    <img src="MDImages/screenshot.jpg" width="30%" />
+  </h1>
+</div>
 
 # Project purpose 🎯
 
