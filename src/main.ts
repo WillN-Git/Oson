@@ -143,16 +143,16 @@ const initializeAudio = (): void => {
   // Load a sound and set it as the Audio object's buffer
   const audioLoader = new AudioLoader();
 
-  audioLoader.load('assets/demo12.mp3', (buffer: AudioBuffer) => {
+  audioLoader.load('assets/demo11.mp3', (buffer: AudioBuffer) => {
     audioSource.setBuffer(buffer);
     audioSource.setLoop(true);
-    audioSource.setVolume(0.4);
+    audioSource.setVolume(0.5);
     audioSource.play();
   });
 
   audioAnalyser = new AudioAnalyser(audioSource, fftSize);
 
-  document.body.addEventListener('click', () => {
+  document.body.addEventListener('click', () => { // Handle pause and play sound
       if (audioSource) {
           (audioSource.isPlaying) ? audioSource.pause() : audioSource.play();
       }
@@ -164,16 +164,16 @@ const initializeAudio = (): void => {
  */
 const createParticles = (): void => {
   const imageData = getImageDataFromVideo(videoInput);
-  const geometry = new BufferGeometry();
+  const geometry = new BufferGeometry(); // geometry of the particles mesh
   geometry.morphAttributes = {}; // This is necessary to avoid error.
 
-  const material = new PointsMaterial({size: 1, sizeAttenuation: false});
+  const material = new PointsMaterial({size: 1, sizeAttenuation: false}); // Material for the particles mesh
 
   // console.log(imageData);
   
+  // Generate vertices from image data
   for (let y=0; y < imageData.height; y++) {
     for (let x=0; x < imageData.width; x++) {
-        // Generate vertices from image data
         const vertex = new Vector3(x - imageData.width / 2, -y + imageData.height / 2, 0);
         particlesVertices.push(vertex.x, vertex.y, vertex.z);
     }
@@ -221,6 +221,8 @@ const getImageDataFromVideo = (frame: HTMLVideoElement, useCache: boolean = true
  */
 const getFrequencyRangeValue = (spectrum: Uint8Array, freqRange: number[]): number => {
   const nyquist = 48000 / 2; // Nyquist frequency
+
+  // Scaling the frequency range to the spectrum domain
   const lowIndex = Math.round(freqRange[0] / nyquist * spectrum.length);
   const highIndex = Math.round(freqRange[1] / nyquist * spectrum.length);
 
@@ -257,14 +259,15 @@ const draw = (deltaTime: DOMHighResTimeStamp = 0): void => {
 
   // Video
   if (particlesMesh) {
+      // Set the mesh's color according to the frequency level
       particlesMesh.material.color.r = 1 - r;
       particlesMesh.material.color.g = 1 - g;
       particlesMesh.material.color.b = 1 - b;
 
       
-      const imageData = getImageDataFromVideo(videoInput, false);
       // @ts-ignore
       const useCache = parseInt(deltaTime) % 2 === 0;  // To reduce CPU usage.
+      const imageData = getImageDataFromVideo(videoInput, useCache);
       const density = 2;
 
       for (let i = 0; i < particlesVertices.length / 3; i++) {
@@ -276,6 +279,7 @@ const draw = (deltaTime: DOMHighResTimeStamp = 0): void => {
               continue;
           }
 
+          // Set the z-position of a particle from its gray level
           let idxColor = i * 4;
           let grayScale = (imageData.data[idxColor] + imageData.data[idxColor + 1] + imageData.data[idxColor + 2]) / 3;
           const bouncingThreshold = 300;
@@ -304,6 +308,9 @@ const draw = (deltaTime: DOMHighResTimeStamp = 0): void => {
   requestAnimationFrame(draw);
 };
 
+/**
+ * Update the canvas size.
+ */
 const handleResize = (): void => {
   screenWidth = window.innerWidth;
   screenHeight = window.innerHeight;
